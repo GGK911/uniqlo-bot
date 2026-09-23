@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>优衣库折扣</title>
+<style>
+  :root {
+    --red: #d0021b;
+    --bg: #f6f6f6;
+    --card: #ffffff;
+    --text: #222;
+    --muted: #888;
+    --border: #e8e8e8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header h1 span { color: var(--red); }
+  .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #btnCrawl {
+    border: 1px solid var(--red);
+    color: var(--red);
+    background: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #btnCrawl:disabled { opacity: .5; cursor: not-allowed; }
+  .stats { color: var(--muted); font-size: 13px; }
+  .stats b { color: var(--red); }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 14px 24px;
+  }
+  .toolbar select, .toolbar input {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .toolbar input[type="search"] { flex: 1; min-width: 160px; }
+  .toolbar label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    padding: 0 24px 32px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    transition: transform .12s ease, box-shadow .12s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,.10); }
+  .card a.img { display: block; aspect-ratio: 3/4; background: #fafafa; position: relative; }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .badge {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: var(--red);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .name {
+    font-size: 13px;
+    line-height: 1.4;
+    height: 2.8em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .meta { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px;
+    color: #555;
+    background: #f1f1f1;
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+  .price-row { display: flex; align-items: baseline; gap: 8px; margin-top: auto; }
+  .now { color: var(--red); font-size: 20px; font-weight: 700; }
+  .now small { font-size: 12px; }
+  .was { color: var(--muted); font-size: 13px; text-decoration: line-through; }
+  .empty { padding: 60px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <h1>优衣库 <span>每日折扣</span></h1>
+    <button id="btnCrawl">立即刷新</button>
+  </div>
+  <div class="stats" id="stats">加载中…</div>
+</header>
+
+<div class="toolbar">
+  <select id="fSex"><option value="">全部品类</option></select>
+  <select id="fPage"><option value="">全部来源</option></select>
+  <select id="fSort">
+    <option value="discount">按折扣排序</option>
+    <option value="price">按价格排序</option>
+  </select>
+  <label>最低折扣 <input type="number" id="fMin" value="0" min="0" max="100" step="5" style="width:70px">%</label>
+  <input type="search" id="fQ" placeholder="搜索名称 / 货号">
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function fmtYuan(n) {
+  return Number.isInteger(Number(n)) ? String(n) : Number(n).toFixed(1);
+}
+
+function foldOf(p) {
+  // 折：现价/原价 * 10，如 7.98 -> 8.0折
+  if (!p.origin_price) return "";
+  return (p.price / p.origin_price * 10).toFixed(1);
+}
+
+function cardHtml(p) {
+  const off = p.discount_rate.toFixed(1);
+  const tags = [
+    p.sex ? `<span class="tag">${esc(p.sex)}</span>` : "",
+    ...p.source_pages.map(s => `<span class="tag">${esc(s)}</span>`),
+  ].join("");
+  return `
+    <div class="card">
+      <a class="img" href="${esc(p.url)}" target="_blank" rel="noopener">
+        <span class="badge">-${off}%</span>
+        <img loading="lazy" src="${esc(p.image_local || p.image)}" alt="${esc(p.name)}">
+      </a>
+      <div class="body">
+        <div class="name" title="${esc(p.full_name || p.name)}">${esc(p.name)}</div>
+        <div class="meta">${tags}</div>
+        <div class="meta">货号 ${esc(p.item_code)} · ${foldOf(p)}折</div>
+        <div class="price-row">
+          <span class="now">¥${fmtYuan(p.price)}</span>
+          ${p.origin_price ? `<span class="was">¥${fmtYuan(p.origin_price)}</span>` : ""}
+        </div>
+      </div>
+    </div>`;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+  ));
+}
+
+async function loadOptions() {
+  try {
+    const r = await fetch("/api/options");
+    const o = await r.json();
+    $("fSex").innerHTML = '<option value="">全部品类</option>' +
+      o.sexes.map(s => `<option>${esc(s)}</option>`).join("");
+    $("fPage").innerHTML = '<option value="">全部来源</option>' +
+      o.pages.map(s => `<option>${esc(s)}</option>`).join("");
+  } catch (e) { /* 忽略 */ }
+}
+
+async function loadSummary() {
+  try {
+    const r = await fetch("/api/summary");
+    const s = await r.json();
+    $("stats").innerHTML =
+      `在售 <b>${s.total}</b> 件 ｜ 平均折扣 <b>${s.avg_discount_rate}%</b> ｜ 最大折扣 <b>${s.max_discount_rate}%</b>` +
+      (s.updated_at ? ` ｜ 更新于 ${esc(s.updated_at)}` : "");
+  } catch (e) { /* 忽略 */ }
+}
+
+async function loadProducts() {
+  const params = new URLSearchParams();
+  if ($("fSex").value) params.set("sex", $("fSex").value);
+  if ($("fPage").value) params.set("page", $("fPage").value);
+  if ($("fMin").value) params.set("min_discount", $("fMin").value);
+  if ($("fQ").value) params.set("q", $("fQ").value);
+
+  let items = [];
+  try {
+    const r = await fetch("/api/products?" + params.toString());
+    items = await r.json();
+  } catch (e) {
+    $("grid").innerHTML = '<div class="empty">加载失败，请确认 web_server.py 已启动</div>';
+    return;
+  }
+
+  if ($("fSort").value === "price") {
+    items.sort((a, b) => a.price - b.price);
+  } else {
+    items.sort((a, b) => b.discount_rate - a.discount_rate || a.price - b.price);
+  }
+
+  $("grid").innerHTML = items.length
+    ? items.map(cardHtml).join("")
+    : '<div class="empty">暂无符合条件的商品</div>';
+}
+
+["fSex", "fPage", "fSort", "fMin", "fQ"].forEach(id => {
+  $(id).addEventListener("input", loadProducts);
+  $(id).addEventListener("change", loadProducts);
+});
+
+$("btnCrawl").addEventListener("click", async () => {
+  const btn = $("btnCrawl");
+  btn.disabled = true;
+  btn.textContent = "抓取中…";
+  try {
+    const r = await fetch("/api/crawl", { method: "POST" });
+    const j = await r.json();
+    if (j.status === "started") {
+      // 轮询摘要，等抓取结束后刷新列表
+      pollUntilDone();
+    } else {
+      btn.textContent = "已在抓取";
+    }
+  } catch (e) {
+    btn.textContent = "刷新失败";
+  }
+});
+
+async function pollUntilDone() {
+  const btn = $("btnCrawl");
+  let prev = "";
+  for (let i = 0; i < 120; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const s = await (await fetch("/api/summary")).json();
+      if (s.updated_at !== prev && prev !== "") {
+        btn.textContent = "刷新完成";
+        btn.disabled = false;
+        loadSummary();
+        loadProducts();
+        loadOptions();
+        return;
+      }
+      prev = s.updated_at;
+    } catch (e) { /* 忽略 */ }
+  }
+  btn.textContent = "立即刷新";
+  btn.disabled = false;
+}
+
+loadOptions();
+loadSummary();
+loadProducts();
+</script>
+</body>
+</html>

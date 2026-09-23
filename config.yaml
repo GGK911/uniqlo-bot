@@ -1,0 +1,45 @@
+# ===== 优衣库折扣机器人配置 =====
+
+uniqlo:
+  base_url: "https://www.uniqlo.cn"
+  # 页面索引：通过它自动发现各促销页当前生效的配置文件（自愈，改版不失效）
+  index_path: "/wechat/config_1/zh_CN/cms-wechat-config.json"
+  # 图片基础路径（主图：{image_base}/{productCode}/main/first/1000/1.jpg）
+  image_base: "https://www.uniqlo.cn/hmall/test"
+  # 要抓取的促销页（route 需匹配索引里的 /wechat/xxx 路由）
+  pages:
+    - route: "/wechat/timelimit"
+      name: "限时特优"
+    - route: "/wechat/super-u"
+      name: "超值精选"
+  request:
+    timeout: 20      # 单次请求超时（秒）
+    retries: 3       # 失败重试次数
+    delay: 0.3       # 相邻请求间隔（秒），避免过快
+
+filter:
+  min_discount_rate: 0    # 只保留折扣率 >= 该值(%)的商品，0 表示全部。例: 20 = 至少8折
+  only_in_stock: true
+
+storage:
+  db_path: "data/uniqlo.db"
+
+# 图片本地缓存（网页加载不再回源优衣库 CDN）
+image_cache:
+  dir: "data/images"     # 本地图片缓存目录
+  concurrency: 4         # 下载并发数
+
+# 定时抓取
+schedule:
+  enabled: true          # 是否启用内置定时器
+  times: ["09:00", "15:00"]  # 每天抓取的时间点（HH:MM，本地时间）
+  stale_hours: 24        # 启动服务时，若数据超过此时长未更新，自动补抓一次
+
+wechat:
+  enabled: false          # 是否启用微信推送
+  webhook_url: ""         # 企业微信群机器人的 webhook 地址
+  top_n: 10               # 推送 TOP N 最划算商品
+
+web:
+  host: "0.0.0.0"
+  port: 8000

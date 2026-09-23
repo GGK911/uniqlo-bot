@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 运行时数据（数据库 + 图片缓存，由抓取自动生成）
+data/
+
+# 抓包数据（含微信 openid / user_id / js_code 等敏感信息，禁止提交）
+抓包/
+
+# Claude Code 本地配置
+.claude/
+
+# 系统文件
+.DS_Store
+Thumbs.db

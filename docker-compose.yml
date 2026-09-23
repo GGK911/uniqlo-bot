@@ -1,0 +1,16 @@
+services:
+  uniqlo:
+    build: .
+    image: uniqlo-bot
+    container_name: uniqlo-bot
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro   # 改配置（如微信 webhook）无需重建镜像
+      - uniqlo_data:/app/data               # 数据库 + 图片缓存持久化
+    restart: unless-stopped
+
+volumes:
+  uniqlo_data:

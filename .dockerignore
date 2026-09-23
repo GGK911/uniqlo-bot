@@ -1,0 +1,11 @@
+# 不打包进镜像的内容
+data/
+抓包/
+__pycache__/
+*.pyc
+*.db
+.git/
+.gitignore
+.claude/
+memory/
+*.md
